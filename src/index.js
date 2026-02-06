@@ -240,6 +240,13 @@ class ConfigGuard {
     return DEFAULT_CONFIG_PATHS[0]; // default even if doesn't exist yet
   }
 
+  /**
+   * Load and return the current config (public accessor)
+   */
+  loadConfig() {
+    return this._readConfig();
+  }
+
   _readConfig() {
     const content = fs.readFileSync(this.configPath, 'utf8');
     return JSON.parse(content);

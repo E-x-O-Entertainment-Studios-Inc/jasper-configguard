@@ -28,6 +28,7 @@ USAGE:
   jasper-configguard <command> [options]
 
 COMMANDS:
+  model <alias|status>       Switch model (opus46, opus45, sonnet) or show current
   patch <json|--file path>   Apply a config patch with safety net
   restore [id]               Restore a backup (latest if no id)
   list                       List available backups
@@ -48,6 +49,15 @@ OPTIONS:
 EXAMPLES:
   # Apply a config change safely
   jasper-configguard patch '{"gateway":{"bind":"lan"}}'
+
+  # Switch main model to Opus 4.6
+  jasper-configguard model opus46
+
+  # Downgrade to Sonnet
+  jasper-configguard model sonnet
+
+  # Check current model
+  jasper-configguard model status
 
   # Preview changes without applying
   jasper-configguard patch --dry-run '{"agents":{"defaults":{"model":{"primary":"anthropic/claude-sonnet-4-5"}}}}'
@@ -82,6 +92,9 @@ async function main() {
 
   try {
     switch (command) {
+      case 'model':
+        await handleModel(guard, args[1], flags);
+        break;
       case 'patch':
         await handlePatch(guard, args.slice(1), flags);
         break;
@@ -130,6 +143,93 @@ function parseFlags(args) {
     else if (args[i] === '--verbose') { flags.verbose = true; }
   }
   return flags;
+}
+
+const MODEL_ALIASES = {
+  'opus46': 'anthropic/claude-opus-4-6',
+  'opus': 'anthropic/claude-opus-4-6',
+  'opus45': 'anthropic/claude-opus-4-5',
+  'sonnet': 'anthropic/claude-sonnet-4-5',
+  'sonnet45': 'anthropic/claude-sonnet-4-5',
+};
+
+async function handleModel(guard, alias, flags) {
+  if (!alias || alias === 'status') {
+    // Show current model
+    const config = guard.loadConfig();
+    const primary = config?.agents?.defaults?.model?.primary || 'unknown';
+    const fallbacks = config?.agents?.defaults?.model?.fallbacks || [];
+    
+    // Reverse-lookup alias
+    const currentAlias = Object.entries(MODEL_ALIASES).find(([, v]) => v === primary)?.[0] || '';
+    
+    console.log('\n🤖 Current model configuration:\n');
+    console.log(`  Primary: ${primary}${currentAlias ? ` (${currentAlias})` : ''}`);
+    if (fallbacks.length > 0) {
+      console.log(`  Fallbacks: ${fallbacks.join(', ')}`);
+    }
+    
+    console.log('\n  Available aliases:');
+    for (const [a, m] of Object.entries(MODEL_ALIASES)) {
+      const marker = m === primary ? ' ← current' : '';
+      console.log(`    ${a.padEnd(10)} → ${m}${marker}`);
+    }
+    
+    console.log('\n  Switch: jasper-configguard model <alias>');
+    return;
+  }
+
+  // Resolve alias
+  const model = MODEL_ALIASES[alias.toLowerCase()] || alias;
+  
+  // Validate it looks like a model string
+  if (!model.includes('/')) {
+    const available = Object.keys(MODEL_ALIASES).join(', ');
+    throw new Error(`Unknown model alias: "${alias}". Available: ${available}\nOr use full model string: provider/model-name`);
+  }
+
+  const config = guard.loadConfig();
+  const currentModel = config?.agents?.defaults?.model?.primary || 'unknown';
+  
+  if (currentModel === model) {
+    console.log(`\n✅ Already on ${model} (${alias}). No change needed.`);
+    return;
+  }
+
+  console.log(`\n🔄 Switching model: ${currentModel} → ${model}`);
+
+  const patch = {
+    agents: {
+      defaults: {
+        model: {
+          primary: model
+        }
+      }
+    }
+  };
+
+  if (flags.dryRun) {
+    console.log('\n🔍 Dry run — would apply:');
+    console.log(JSON.stringify(patch, null, 2));
+    console.log('\nNo changes made. Remove --dry-run to apply.');
+    return;
+  }
+
+  const result = await guard.patch(patch, {
+    restart: true,
+    verbose: flags.verbose
+  });
+
+  if (result.success) {
+    const aliasStr = Object.entries(MODEL_ALIASES).find(([, v]) => v === model)?.[0] || '';
+    console.log(`\n✅ Model switched to ${model}${aliasStr ? ` (${aliasStr})` : ''}`);
+    console.log(`   Backup: ${result.backupId}`);
+    console.log(`   Rollback: jasper-configguard restore ${result.backupId}`);
+  } else {
+    console.log(`\n⚠️  Model switch failed — rolled back to ${currentModel}`);
+    console.log(`   Error: ${result.error}`);
+    process.exit(1);
+  }
 }
 
 async function handlePatch(guard, args, flags) {
