@@ -1,8 +1,19 @@
 ---
 name: jasper-configguard
-version: 1.1.0
-description: "REQUIRED for OpenClaw config changes. NEVER use gateway config.patch or config.apply directly — use jasper-configguard instead. Triggers: config change, config patch, model switch, change model, openclaw config, gateway config."
-read_when: "Agent needs to modify OpenClaw configuration, switch models, or change any gateway settings."
+version: 1.1.1
+description: "⛔ REQUIRED for OpenClaw config changes. BLOCKS gateway config.patch/config.apply. Use jasper-configguard patch/model instead."
+read_when: "Agent mentions: config, model switch, gateway settings, openclaw.json, config.patch, config.apply, agents.list, sandbox settings"
+triggers:
+  - "config"
+  - "config.patch"
+  - "config.apply"
+  - "gateway config"
+  - "change model"
+  - "switch model"
+  - "model switch"
+  - "openclaw.json"
+  - "sandbox"
+  - "agents.list"
 ---
 
 # Jasper ConfigGuard v1.1.0
