@@ -151,6 +151,8 @@ const MODEL_ALIASES = {
   'opus45': 'anthropic/claude-opus-4-5',
   'sonnet': 'anthropic/claude-sonnet-4-5',
   'sonnet45': 'anthropic/claude-sonnet-4-5',
+  'chatgpt': 'openai-codex/gpt-5.2',
+  'gpt52': 'openai-codex/gpt-5.2',
 };
 
 async function handleModel(guard, alias, flags) {
